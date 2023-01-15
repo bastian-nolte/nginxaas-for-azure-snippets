@@ -1,11 +1,11 @@
 variable "location" {
   description = "Azure location name for NGINXaaS deployment."
-  default     = "eastus2"
+  default     = "westeurope"
 }
 
 variable "name" {
   description = "Name of NGINXaaS deployment and related resources."
-  default     = "example-nginx"
+  default     = "nginx-demo-tf"
 }
 
 variable "sku" {
