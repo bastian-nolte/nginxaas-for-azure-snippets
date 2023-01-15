@@ -41,61 +41,37 @@ resource "azurerm_key_vault" "example" {
   tags = var.tags
 }
 
-resource "azurerm_key_vault_certificate" "example" {
-  name         = var.name
-  key_vault_id = azurerm_key_vault.example.id
-
-  certificate_policy {
-    issuer_parameters {
-      name = "Self"
+locals {
+  role_assignements = [
+    {
+      principal : "69e8ee33-8ac0-49bd-9715-969dbb75a4ff" # bastian-nolte_outlook.de#EXT#@istademo.onmicrosoft.com
+      role : "Key Vault Administrator"
+    },
+    {
+      principal : (module.prerequisites.managed_identity_principal_id)
+      role : "Key Vault Secrets User"
     }
-
-    key_properties {
-      exportable = true
-      key_size   = 2048
-      key_type   = "RSA"
-      reuse_key  = false
-    }
-
-    lifetime_action {
-      action {
-        action_type = "AutoRenew"
-      }
-
-      trigger {
-        days_before_expiry = 30
-      }
-    }
-
-    secret_properties {
-      content_type = "application/x-pem-file"
-    }
-
-    x509_certificate_properties {
-      extended_key_usage = [
-        "1.3.6.1.5.5.7.3.1",
-        "1.3.6.1.5.5.7.3.2"
-      ]
-
-      key_usage = [
-        "cRLSign",
-        "dataEncipherment",
-        "digitalSignature",
-        "keyAgreement",
-        "keyCertSign",
-        "keyEncipherment",
-      ]
-
-      subject            = "CN=example.com"
-      validity_in_months = 12
-    }
-  }
+  ]
+}
+resource "azurerm_role_assignment" "example" {
+  count                = length(local.role_assignements)
+  scope                = azurerm_key_vault.example.id
+  role_definition_name = local.role_assignements[count.index].role
+  principal_id         = local.role_assignements[count.index].principal
 }
 
-resource "azurerm_role_assignment" "example" {
-  scope                = azurerm_key_vault.example.id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = module.prerequisites.managed_identity_principal_id
+resource "azurerm_key_vault_certificate" "example" {
+  name         = "nginx-on-azure-terraform-demo1"
+  key_vault_id = azurerm_key_vault.example.id
+
+  certificate {
+    contents = filebase64("nginx-on-azure-terraform-demo1.bergsee.consulting.pfx")
+    password = ""
+  }
+
+  depends_on = [
+    azurerm_role_assignment.example
+  ]
 }
 
 resource "azurerm_nginx_deployment" "example" {
@@ -123,8 +99,8 @@ resource "azurerm_nginx_deployment" "example" {
 resource "azurerm_nginx_certificate" "example" {
   name                     = var.name
   nginx_deployment_id      = azurerm_nginx_deployment.example.id
-  key_virtual_path         = "/etc/nginx/ssl/test.key"
-  certificate_virtual_path = "/etc/nginx/ssl/test.crt"
+  key_virtual_path         = "/etc/nginx/ssl/nginx-on-azure-terraform-demo1.key"
+  certificate_virtual_path = "/etc/nginx/ssl/nginx-on-azure-terraform-demo1.crt"
   key_vault_secret_id      = azurerm_key_vault_certificate.example.secret_id
 }
 
